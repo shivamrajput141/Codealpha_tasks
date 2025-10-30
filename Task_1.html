@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Responsive Image Gallery with Lightbox, Filters & Categories</title>
+  <style>
+    /* ----------------- Reset & base ----------------- */
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:#0f172a;color:#e6eef8}
+    .wrap{max-width:1200px;margin:40px auto;padding:16px}
+
+    /* ----------------- Header + Controls ----------------- */
+    .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:18px}
+    .title{flex:1}
+    h1{font-size:20px;font-weight:700}
+    .btn{background:#111827;border:1px solid rgba(255,255,255,0.06);color:#e6eef8;padding:8px 12px;border-radius:10px;cursor:pointer;transition:all .18s;}
+    .btn:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .btn.active{background:linear-gradient(90deg,#7c3aed,#06b6d4);color:white;border:none}
+
+    /* ----------------- Filter tags and effects ----------------- */
+    .filters{display:flex;gap:8px;flex-wrap:wrap}
+    .effects{display:flex;gap:8px;align-items:center}
+    .effects label{font-size:13px;color:#9aa9c7}
+    select, input[type=checkbox]{padding:6px;border-radius:8px;background:#0b1220;border:1px solid rgba(255,255,255,0.04);color:#cfe4ff}
+
+    /* ----------------- Gallery grid ----------------- */
+    .gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .item{position:relative;overflow:hidden;border-radius:12px;background:#071127}
+    .item img{width:100%;height:220px;object-fit:cover;display:block;transition:transform .35s ease, filter .35s ease, opacity .35s ease}
+    .item .meta{position:absolute;left:8px;bottom:8px;background:linear-gradient(90deg, rgba(0,0,0,0.6), rgba(0,0,0,0.2));padding:6px 8px;border-radius:8px;font-size:13px;color:#f8fafc}
+
+    /* Hover effects */
+    .item:hover img{transform:scale(1.07) rotate(.5deg);filter:brightness(1.05)}
+    .item:hover .meta{transform:translateY(0);opacity:1}
+
+    /* Responsive */
+    @media (max-width:1000px){.gallery{grid-template-columns:repeat(3,1fr)}.item img{height:180px}}
+    @media (max-width:720px){.gallery{grid-template-columns:repeat(2,1fr)}.item img{height:160px}}
+    @media (max-width:420px){.gallery{grid-template-columns:repeat(1,1fr)}.item img{height:260px}}
+
+    /* ----------------- Lightbox ----------------- */
+    .lightbox{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.75);z-index:1000;opacity:0;pointer-events:none;transition:opacity .22s}
+    .lightbox.open{opacity:1;pointer-events:auto}
+    .lightbox-inner{max-width:90%;max-height:86%;position:relative;border-radius:12px;overflow:hidden;background:#06070a}
+    .lightbox img{width:100%;height:80vh;object-fit:contain;display:block;background:linear-gradient(180deg,#071127,#02030a)}
+    .lb-meta{padding:12px 14px;color:#dbeafe;font-size:14px;background:linear-gradient(180deg, rgba(2,6,23,0), rgba(2,6,23,0.6));position:absolute;left:12px;bottom:12px;border-radius:8px}
+
+    /* Controls inside lightbox */
+    .nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.5);border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+    .prev{left:12px}.next{right:12px}
+    .close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:8px;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;cursor:pointer}
+
+    /* Tiny transitions */
+    .nav:hover,.close:hover{transform:translateY(-2px);background:rgba(255,255,255,0.04)}
+
+    /* ----------------- Image filters (bonus) ----------------- */
+    .filter-none img{filter:none}
+    .filter-grayscale img{filter:grayscale(100%)}
+    .filter-sepia img{filter:sepia(0.5) contrast(1.05)}
+    .filter-blur img{filter:blur(1px) saturate(1.05)}
+    .filter-saturate img{filter:saturate(1.4) contrast(1.01)}
+
+    /* Smooth fade for items when filtering categories */
+    .item.hidden{opacity:0;transform:scale(.98);pointer-events:none;height:0;padding:0;margin:0}
+
+    /* Small utility */
+    .kbd{font-size:12px;color:#9aa9c7;background:rgba(255,255,255,0.03);padding:4px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="controls">
+      <div class="title"><h1>Responsive Image Gallery</h1></div>
+
+      <div class="filters">
+        <button class="btn active" data-cat="all">All</button>
+        <button class="btn" data-cat="nature">Nature</button>
+        <button class="btn" data-cat="cars">Cars</button>
+        <button class="btn" data-cat="architecture">Architecture</button>
+        <button class="btn" data-cat="people">People</button>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-left:auto">
+        <div class="effects">
+          <label for="effect">Effect</label>
+          <select id="effect">
+            <option value="filter-none">None</option>
+            <option value="filter-grayscale">Grayscale</option>
+            <option value="filter-sepia">Sepia</option>
+            <option value="filter-blur">Slight Blur</option>
+            <option value="filter-saturate">Saturate</option>
+          </select>
+        </div>
+
+        <div style="display:flex;flex-direction:column;align-items:flex-end">
+          <span class="kbd">Open: click image • Esc to close</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="gallery" class="gallery filter-none">
+      <!-- Each .item has data attributes for category and a title -->
+
+      <!-- sample items using picsum.photos for demo -- replace with your images -->
+      <div class="item" data-cat="nature" data-title="Misty Forest" tabindex="0">
+        <img src="https://picsum.photos/id/1018/1000/600" alt="Misty Forest">
+        <div class="meta">Nature • Misty Forest</div>
+      </div>
+
+      <div class="item" data-cat="cars" data-title="Red Sports Car">
+        <img src="https://picsum.photos/id/1003/1000/600" alt="Red Sports Car">
+        <div class="meta">Cars • Red Sports Car</div>
+      </div>
+
+      <div class="item" data-cat="architecture" data-title="City Skyline">
+        <img src="https://picsum.photos/id/1011/1000/600" alt="City Skyline">
+        <div class="meta">Architecture • City Skyline</div>
+      </div>
+
+      <div class="item" data-cat="people" data-title="Portrait Smiles">
+        <img src="https://picsum.photos/id/1027/1000/600" alt="Portrait Smiles">
+        <div class="meta">People • Portrait Smiles</div>
+      </div>
+
+      <div class="item" data-cat="nature" data-title="Lake View">
+        <img src="https://picsum.photos/id/1015/1000/600" alt="Lake View">
+        <div class="meta">Nature • Lake View</div>
+      </div>
+
+      <div class="item" data-cat="cars" data-title="Vintage Car">
+        <img src="https://picsum.photos/id/1043/1000/600" alt="Vintage Car">
+        <div class="meta">Cars • Vintage</div>
+      </div>
+
+      <div class="item" data-cat="architecture" data-title="Bridge at Night">
+        <img src="https://picsum.photos/id/1031/1000/600" alt="Bridge at Night">
+        <div class="meta">Architecture • Bridge at Night</div>
+      </div>
+
+      <div class="item" data-cat="people" data-title="Street Performer">
+        <img src="https://picsum.photos/id/1025/1000/600" alt="Street Performer">
+        <div class="meta">People • Street Performer</div>
+      </div>
+
+    </div>
+
+    <!-- Lightbox element -->
+    <div id="lightbox" class="lightbox" aria-hidden="true">
+      <div class="lightbox-inner" role="dialog" aria-label="Image preview">
+        <div class="close" id="lb-close" title="Close">✕</div>
+        <div class="nav prev" id="lb-prev" title="Previous">◀</div>
+        <div class="nav next" id="lb-next" title="Next">▶</div>
+        <img id="lb-image" src="" alt="">
+        <div id="lb-caption" class="lb-meta"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Grab elements
+    const gallery = document.getElementById('gallery');
+    const items = Array.from(document.querySelectorAll('.gallery .item'));
+    const filters = document.querySelectorAll('.filters .btn');
+    const effectSelect = document.getElementById('effect');
+
+    // Lightbox elements
+    const lightbox = document.getElementById('lightbox');
+    const lbImage = document.getElementById('lb-image');
+    const lbCaption = document.getElementById('lb-caption');
+    const lbClose = document.getElementById('lb-close');
+    const lbPrev = document.getElementById('lb-prev');
+    const lbNext = document.getElementById('lb-next');
+
+    let currentIndex = -1;
+
+    // ----------------- Category filtering -----------------
+    function setActiveBtn(selectedBtn){
+      filters.forEach(b=>b.classList.remove('active'));
+      selectedBtn.classList.add('active');
+    }
+
+    filters.forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const cat = btn.dataset.cat;
+        setActiveBtn(btn);
+        filterCategory(cat);
+      });
+    });
+
+    function filterCategory(cat){
+      items.forEach((it)=>{
+        const itsCat = it.dataset.cat;
+        if(cat==='all' || itsCat===cat){
+          it.classList.remove('hidden');
+        } else {
+          it.classList.add('hidden');
+        }
+      });
+    }
+
+    // ----------------- Image effect/filter -----------------
+    effectSelect.addEventListener('change', ()=>{
+      gallery.className = 'gallery ' + effectSelect.value;
+    });
+
+    // ----------------- Lightbox open/close/navigation -----------------
+    function openLightbox(index){
+      currentIndex = index;
+      const item = items[currentIndex];
+      const img = item.querySelector('img');
+      lbImage.src = img.src;
+      lbImage.alt = img.alt || item.dataset.title || '';
+      lbCaption.textContent = item.dataset.title || img.alt || '';
+      lightbox.classList.add('open');
+      lightbox.setAttribute('aria-hidden','false');
+      // preload neighbors
+      preloadIndex(currentIndex-1);
+      preloadIndex(currentIndex+1);
+    }
+
+    function closeLightbox(){
+      lightbox.classList.remove('open');
+      lightbox.setAttribute('aria-hidden','true');
+      lbImage.src = '';
+      currentIndex = -1;
+    }
+
+    function gotoIndex(i){
+      if(i<0) i = items.length - 1;
+      if(i>=items.length) i = 0;
+      // skip hidden items so category filtering doesn't break navigation
+      let start=i; let attempts=0;
+      while(items[i].classList.contains('hidden') && attempts < items.length){
+        i = (i+1) % items.length; attempts++;
+      }
+      if(attempts>=items.length) return; // no visible items
+      currentIndex = i;
+      const img = items[currentIndex].querySelector('img');
+      lbImage.src = img.src;
+      lbCaption.textContent = items[currentIndex].dataset.title || img.alt || '';
+      preloadIndex(currentIndex-1);
+      preloadIndex(currentIndex+1);
+    }
+
+    function preloadIndex(i){
+      if(i<0) i = items.length - 1;
+      if(i>=items.length) i = 0;
+      const img = new Image();
+      img.src = items[i].querySelector('img').src;
+    }
+
+    // Attach click listeners to each item
+    items.forEach((it, idx)=>{
+      it.addEventListener('click', ()=> openLightbox(idx));
+      it.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') openLightbox(idx); });
+    });
+
+    // Close / next / prev handlers
+    lbClose.addEventListener('click', closeLightbox);
+    lbPrev.addEventListener('click', ()=> gotoIndex(currentIndex-1));
+    lbNext.addEventListener('click', ()=> gotoIndex(currentIndex+1));
+
+    // Click outside image closes
+    lightbox.addEventListener('click', (e)=>{
+      if(e.target === lightbox) closeLightbox();
+    });
+
+    // keyboard navigation
+    document.addEventListener('keydown', (e)=>{
+      if(lightbox.classList.contains('open')){
+        if(e.key === 'Escape') closeLightbox();
+        if(e.key === 'ArrowLeft') gotoIndex(currentIndex-1);
+        if(e.key === 'ArrowRight') gotoIndex(currentIndex+1);
+      }
+    });
+
+    // ----------------- Accessibility & enhancements -----------------
+    // Allow filtering via URL hash e.g. #cars to open that category
+    function applyHashFilter(){
+      const hash = location.hash.replace('#','');
+      if(!hash) return;
+      const btn = Array.from(filters).find(b=>b.dataset.cat===hash);
+      if(btn){ setActiveBtn(btn); filterCategory(hash); }
+    }
+    applyHashFilter();
+
+    // small performance: lazy-load images when in viewport
+    if('IntersectionObserver' in window){
+      const io = new IntersectionObserver((entries)=>{
+        entries.forEach(entry=>{
+          if(entry.isIntersecting){
+            const img = entry.target.querySelector('img');
+            if(img && img.dataset.src){ img.src = img.dataset.src; }
+            io.unobserve(entry.target);
+          }
+        });
+      }, {rootMargin:'200px'});
+      items.forEach(it=>io.observe(it));
+    }
+
+    // On load: ensure gallery class includes selected filter
+    gallery.classList.add(effectSelect.value);
+
+    // Optional: make images draggable false for nicer UX
+    document.querySelectorAll('img').forEach(i=>i.setAttribute('draggable','false'));
+  </script>
+</body>
+</html>
